@@ -4,11 +4,11 @@ import time
 import pyperclip
 from datetime import datetime, timedelta
 import sys
-import tkinter # Vi bruger denne til at tvinge clipboardet
+import subprocess # Vi bruger denne til at tale direkte med Windows
 
 pyautogui.FAILSAFE = True
 
-# Stier til billeder
+# Stier
 script_dir = os.path.dirname(os.path.abspath(__file__))
 start_img = os.path.join(script_dir, 'start.png')
 copy_img = os.path.join(script_dir, 'copy.png')
@@ -34,39 +34,46 @@ if not copy_loc:
     sys.exit()
 
 pyautogui.click(copy_loc)
-time.sleep(0.5)
+time.sleep(1.0) # Vi giver den lige lidt ekstra tid her
 
-# --- Del 2: Beregn og TVING ny værdi ind ---
+# --- Del 2: Beregn og TVING med PowerShell ---
 try:
     original_str = pyperclip.paste().strip()
+    print(f"Læste fra clipboard: {original_str}")
+    
     dt = datetime.strptime(original_str, "%H.%M")
     utc_dt = dt - timedelta(hours=1)
     new_str = utc_dt.strftime("%H.%M")
     
-    print(f"Beregnet værdi: {new_str}")
+    print(f"Vil indsætte ny værdi: {new_str}")
 
-    # HER ER FIXET:
-    # Vi bruger tkinter til at rydde og sætte clipboardet, da det er mere robust
-    r = tkinter.Tk()
-    r.withdraw()        # Skjul det lille vindue der ellers kommer
-    r.clipboard_clear() # Tøm clipboard helt
-    r.clipboard_append(new_str) # Sæt den nye værdi
-    r.update()          # Tving systemet til at opdatere
-    r.destroy()         # Luk tkinter ned igen
+    # HER ER MAGIEN:
+    # Vi beder Windows PowerShell om at sætte clipboardet. 
+    # Dette kører på system-niveau og ignorerer python-bibliotekernes begrænsninger.
+    cmd = f'powershell Set-Clipboard -Value "{new_str}"'
+    subprocess.run(cmd, shell=True)
     
-    print("Clipboard er tvangs-opdateret.")
+    # Vent kort for at sikre at Windows har fanget beskeden
+    time.sleep(1.0)
     
+    # DEBUG-TJEK: Vi læser clipboardet igen for at se om det lykkedes
+    check_val = pyperclip.paste().strip()
+    if check_val == new_str:
+        print("Succes: Clipboard er opdateret korrekt!")
+    else:
+        print(f"FEJL: Clipboard indeholder stadig {check_val}")
+
 except ValueError:
-    print(f"Fejl i tidsformat: {original_str}")
+    print(f"Kunne ikke læse tid (fik: '{original_str}')")
     sys.exit()
 
-# --- Del 3: Sæt ind med musen ---
+# --- Del 3: Sæt ind ---
 pyautogui.rightClick(start_loc)
 time.sleep(0.8) 
 
 paste_loc = pyautogui.locateCenterOnScreen(paste_img, confidence=0.9, grayscale=True)
 if paste_loc:
     pyautogui.click(paste_loc)
-    print("Indsat korrekt.")
+    print("Indsat.")
 else:
     print("Kunne ikke finde 'Sæt ind'.")
